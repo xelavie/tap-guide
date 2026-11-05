@@ -6,7 +6,8 @@ export const PROVIDERS = {
     label: 'Claude',
     company: 'Anthropic',
     defaultModel: 'claude-sonnet-5-5',
-    keyUrl: 'https://console.anthropic.com/settings/keys',
+    keyUrl: 'https://platform.claude.com/settings/keys',
+    hasWorkspace: true,
     keyPrefix: 'sk-ant-',
   },
   gemini: {
@@ -45,20 +46,24 @@ async function postJson(url, headers, body, signal) {
   try { json = await res.json(); } catch (e) { /* non-JSON */ }
   if (!res.ok) {
     const msg = json?.error?.message || json?.message || `HTTP ${res.status}`;
-    throw new AiError(msg, { status: res.status });
+    const kind = /workspace/i.test(msg) ? 'workspace' : undefined;
+    throw new AiError(msg, { status: res.status, kind });
   }
   return json;
 }
 
-async function callAnthropic({ key, model, system, text, image, signal }) {
+async function callAnthropic({ key, model, workspace, system, text, image, signal }) {
   const content = [];
   if (image) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } });
   content.push({ type: 'text', text });
-  const j = await postJson('https://api.anthropic.com/v1/messages', {
+  const headers = {
     'x-api-key': key,
-    'anthropic-version': '2023-06-01',
+    'anthropic-version': '2026-10-21',
     'anthropic-dangerous-direct-browser-access': 'true',
-  }, { model, max_tokens: 1200, system, messages: [{ role: 'user', content }] }, signal);
+  };
+  // Needed only for keys that are not scoped to a single workspace
+  if (workspace) headers['anthropic-workspace-id'] = workspace;
+  const j = await postJson('https://api.anthropic.com/v1/messages', headers, { model, max_tokens: 1200, system, messages: [{ role: 'user', content }] }, signal);
   return (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
 }
 
@@ -93,7 +98,7 @@ export async function callProvider(cfg, args) {
   const fn = CALLERS[cfg.provider];
   if (!fn) throw new AiError('Unknown AI provider', { kind: 'config' });
   if (!cfg.key) throw new AiError('No API key', { kind: 'nokey' });
-  return fn({ key: cfg.key.trim(), model: (cfg.model || PROVIDERS[cfg.provider].defaultModel).trim(), ...args });
+  return fn({ key: cfg.key.trim(), model: (cfg.model || PROVIDERS[cfg.provider].defaultModel).trim(), workspace: (cfg.workspace || '').trim(), ...args });
 }
 
 // Pull the first JSON object out of a model reply (tolerates code fences / chatter).

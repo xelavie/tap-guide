@@ -13,6 +13,7 @@ export default function SettingsScreen({ lang, cfg, lastRun, onChange, onBack, t
   const meta = PROVIDERS[p];
   const key = cfg.keys[p] || '';
   const model = cfg.models[p] || '';
+  const workspace = (cfg.workspaces || {})[p] || '';
 
   // Settings save as you type — no separate save step to forget.
   const update = (patch) => {
@@ -22,16 +23,18 @@ export default function SettingsScreen({ lang, cfg, lastRun, onChange, onBack, t
   };
   const setKey = (v) => update({ keys: { ...cfg.keys, [p]: v.trim() } });
   const setModel = (v) => update({ models: { ...cfg.models, [p]: v.trim() } });
+  const setWorkspace = (v) => update({ workspaces: { ...(cfg.workspaces || {}), [p]: v.trim() } });
 
   const runTest = async () => {
     if (!key) return;
     setTest({ state: 'busy', msg: '' });
     try {
-      await testConnection({ provider: p, key, model });
+      await testConnection({ provider: p, key, model, workspace });
       setTest({ state: 'ok', msg: T.testOk });
     } catch (e) {
       const m = e.kind === 'auth' ? (ko ? 'API 키가 맞지 않아요' : 'Key was rejected')
         : e.kind === 'network' ? (ko ? '연결할 수 없어요. 인터넷을 확인해주세요' : 'Could not connect')
+        : e.kind === 'workspace' ? (ko ? '이 키는 워크스페이스 ID가 필요해요. 아래 칸에 넣거나, 키를 만들 때 워크스페이스를 하나 골라 다시 만들어주세요.' : 'This key needs a workspace ID. Add it below, or create a key scoped to one workspace.')
         : e.message;
       setTest({ state: 'err', msg: m });
     }
@@ -80,6 +83,18 @@ export default function SettingsScreen({ lang, cfg, lastRun, onChange, onBack, t
             autoComplete="off" autoCapitalize="off" spellCheck="false"
             onChange={e => setModel(e.target.value)} aria-label={T.model} />
         </div>
+
+
+        {meta.hasWorkspace && (
+          <>
+            <div className="set-lbl">{ko ? '워크스페이스 ID' : 'Workspace ID'}<small>{ko ? '보통은 비워두세요' : 'Usually leave empty'}</small></div>
+            <div className="field">
+              <input type="text" value={workspace} placeholder="wrkspc_…"
+                autoComplete="off" autoCapitalize="off" spellCheck="false"
+                onChange={e => setWorkspace(e.target.value)} aria-label="Workspace ID" />
+            </div>
+          </>
+        )}
 
         <div className="set-row">
           <button className={'btn-primary grow ' + (test.state === 'ok' ? 'is-ok' : '')} disabled={!key || test.state === 'busy'} onClick={runTest}>

@@ -9,9 +9,9 @@ function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* priv
 export function loadAiConfig() {
   try {
     const c = JSON.parse(safeGet(KEY) || '{}');
-    return { provider: PROVIDERS[c.provider] ? c.provider : 'gemini', keys: c.keys || {}, models: c.models || {} };
+    return { provider: PROVIDERS[c.provider] ? c.provider : 'gemini', keys: c.keys || {}, models: c.models || {}, workspaces: c.workspaces || {} };
   } catch (e) {
-    return { provider: 'gemini', keys: {}, models: {} };
+    return { provider: 'gemini', keys: {}, models: {}, workspaces: {} };
   }
 }
 
@@ -20,5 +20,5 @@ export function saveAiConfig(c) { safeSet(KEY, JSON.stringify(c)); }
 // The settings actually used for a call
 export function activeAi(c = loadAiConfig()) {
   const key = c.keys[c.provider] || '';
-  return key ? { provider: c.provider, key, model: c.models[c.provider] || '' } : null;
+  return key ? { provider: c.provider, key, model: c.models[c.provider] || '', workspace: (c.workspaces || {})[c.provider] || '' } : null;
 }

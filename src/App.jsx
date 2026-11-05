@@ -216,6 +216,7 @@ function errorText(err, lang) {
   switch (err?.kind) {
     case 'auth': return ko ? 'API 키가 맞지 않아요. AI 연결 설정에서 키를 확인해주세요.' : 'The API key was rejected. Check it in AI setup.';
     case 'quota': return ko ? '사용 한도에 걸렸어요. 잠시 후 다시 시도하거나 결제 설정을 확인해주세요.' : 'Rate or usage limit reached. Try again later or check billing.';
+    case 'workspace': return ko ? 'Claude 키에 워크스페이스 설정이 필요해요. AI 연결 화면을 확인해주세요.' : 'Your Claude key needs a workspace. Check AI setup.';
     case 'network': return ko ? '인터넷 연결을 확인해주세요.' : 'Check your internet connection.';
     case 'parse': return ko ? 'AI 응답을 읽지 못했어요. 다시 찍어주세요.' : 'Could not read the AI reply. Please retake.';
     default: return (ko ? 'AI 오류: ' : 'AI error: ') + (err?.message || '');
@@ -235,7 +236,7 @@ function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings }
       <div className="fail-body">
         <h2>{noAi ? T.noAiT : isErr ? T.errT : T.failT}</h2>
         <p>{noAi ? T.noAiD : isErr ? errorText(error, lang) : T.failD}</p>
-        {(noAi || error?.kind === 'auth') && (
+        {(noAi || error?.kind === 'auth' || error?.kind === 'workspace') && (
           <button className="connect-btn" onClick={onSettings}><span className="ai-dot" />{T.connect}</button>
         )}
         {!noAi && !isErr && (

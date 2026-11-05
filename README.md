@@ -23,7 +23,7 @@ HCI 수업 과제이자 실제 런칭을 목표로 하는 프로젝트입니다.
 | AI | 키 발급 | 기본 모델 |
 |---|---|---|
 | Gemini (Google) | https://aistudio.google.com/apikey | `gemini-3.6-flash` |
-| Claude (Anthropic) | https://console.anthropic.com/settings/keys | `claude-sonnet-5-5` |
+| Claude (Anthropic) | https://platform.claude.com/settings/keys | `claude-sonnet-5-5` |
 | ChatGPT (OpenAI) | https://platform.openai.com/api-keys | `gpt-5.5` |
 
 모델 이름은 설정 화면에서 바꿀 수 있습니다(더 싸거나 빠른 모델로 비교 테스트할 때 유용).
