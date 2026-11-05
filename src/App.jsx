@@ -316,7 +316,7 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
   const n = faucet.steps.length;
   const cur = step >= 0 ? faucet.steps[step] : null;
   // Thumbnail: on-photo guides show the reference example; otherwise the user's own photo
-  const thumb = faucet.onPhoto ? { src: faucet.ref.img, label: T.refPhoto } : userPhoto ? { src: userPhoto.src, label: T.yourPhoto } : null;
+  const thumb = faucet.onPhoto ? (faucet.ref ? { src: faucet.ref.img, label: T.refPhoto } : null) : userPhoto ? { src: userPhoto.src, label: T.yourPhoto } : null;
 
   return (
     <div className="scr res" data-screen-label="04 Result">
@@ -340,7 +340,7 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
         <div className="grab" />
         <div className="type-row">
           <div>
-            <div className="eyebrow">{T.detected}</div>
+            <div className="eyebrow">{faucet.custom ? T.customEyebrow : T.detected}</div>
             <h2>{faucet.name[lang]}</h2>
           </div>
           <div className="match"><b>{faucet.match}%</b><small>{T.match}</small></div>
@@ -375,6 +375,13 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
           </ol>
         )}
 
+        {faucet.custom && (
+          <div className="ai-note">
+            <span className="ai-dot" />
+            <div><b>{T.aiNote}</b><p>{T.customWarn}</p></div>
+          </div>
+        )}
+
         {faucet.note && (
           <div className="ai-note">
             <span className="ai-dot" />
@@ -382,10 +389,12 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
           </div>
         )}
 
-        <div className="safety">
-          <span className="warn-ic">!</span>
-          <div><b>{T.safety}</b><p>{faucet.safety[lang]}</p></div>
-        </div>
+        {faucet.safety[lang] && (
+          <div className="safety">
+            <span className="warn-ic">!</span>
+            <div><b>{T.safety}</b><p>{faucet.safety[lang]}</p></div>
+          </div>
+        )}
 
         <div className="actions">
           <button className="act" onClick={onRetake}><span className="cam-ic sm dark" />{T.retake}</button>
@@ -473,7 +482,7 @@ export default function App() {
       setShare(false); showToast(T.saved); return;
     }
     if (kind === 'link') {
-      try { await navigator.clipboard.writeText(location.href.split('#')[0] + '#' + faucet.id); } catch (e) { /* ignore */ }
+      try { await navigator.clipboard.writeText(location.href.split('#')[0] + (faucet.custom ? '' : '#' + faucet.id)); } catch (e) { /* ignore */ }
       setShare(false); showToast(T.copied); return;
     }
     if (kind === 'native') {

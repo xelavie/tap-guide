@@ -63,7 +63,7 @@ async function callAnthropic({ key, model, workspace, system, text, image, signa
   };
   // Needed only for keys that are not scoped to a single workspace
   if (workspace) headers['anthropic-workspace-id'] = workspace;
-  const j = await postJson('https://api.anthropic.com/v1/messages', headers, { model, max_tokens: 1200, system, messages: [{ role: 'user', content }] }, signal);
+  const j = await postJson('https://api.anthropic.com/v1/messages', headers, { model, max_tokens: 2500, system, messages: [{ role: 'user', content }] }, signal);
   return (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
 }
 
