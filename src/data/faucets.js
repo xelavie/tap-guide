@@ -4,6 +4,7 @@ import img_twohandle from '../assets/twohandle.jpg';
 import img_sensor from '../assets/sensor.jpg';
 import img_thermo from '../assets/thermo.jpg';
 import img_diverter from '../assets/diverter.jpg';
+import img_hero from '../assets/hero.svg';
 
 const RAW = [
   {
@@ -157,3 +158,16 @@ export function stripOptional(f) {
   };
 }
 export const FAUCETS = FAUCET_DEFS.map(stripOptional);
+
+// Illustration used on the splash and onboarding screens (not a recognizable type).
+export const HERO = {
+  id: 'hero', img: img_hero, ratio: 520 / 580,
+  pins: [
+    { id: 'h', x: 64, y: 24, label: { ko: '레버', en: 'Lever' }, side: 'l' },
+    { id: 's', x: 59, y: 71, label: { ko: '토수구', en: 'Spout' }, side: 'r' },
+  ],
+  steps: [
+    { pins: ['h'], arrow: { kind: 'up', x: 64, y: 24 } },
+    { pins: ['h'], arrow: { kind: 'swap', x: 64, y: 24 } },
+  ],
+};

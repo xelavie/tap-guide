@@ -365,3 +365,40 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px;flex:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{white-space:nowrap;flex:none}
+
+/* ---------- TapSnap brand (added) ---------- */
+.brand{gap:3px;align-items:flex-start;font-weight:900;font-size:19px;letter-spacing:-.04em;line-height:1}
+.brand-dot{width:6px;height:6px;border-radius:50%;background:var(--coral);margin-top:1px;flex:none}
+
+/* faucet illustration in a viewfinder */
+.hero-frame{position:relative;width:236px;height:263px;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.hero-card{position:absolute;inset:0;border-radius:24px;overflow:hidden;background:#f2eee9;
+  box-shadow:0 20px 50px -24px rgba(90,60,30,.45)}
+.hero-card .guide-ov{overflow:visible}
+.hero-frame .vf{position:absolute;width:34px;height:34px;border:4px solid var(--coral);pointer-events:none}
+.hero-frame .vf:nth-of-type(1){left:-14px;top:-14px;border-width:4px 0 0 4px;border-radius:16px 0 0 0}
+.hero-frame .vf:nth-of-type(2){right:-14px;top:-14px;border-width:4px 4px 0 0;border-radius:0 16px 0 0}
+.hero-frame .vf:nth-of-type(3){left:-14px;bottom:-14px;border-width:0 0 4px 4px;border-radius:0 0 0 16px}
+.hero-frame .vf:nth-of-type(4){right:-14px;bottom:-14px;border-width:0 4px 4px 0;border-radius:0 0 16px 0}
+
+/* onboarding */
+.ob-art{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px}
+.ob-chips{display:flex;align-items:center;gap:8px}
+.chip{display:flex;align-items:center;gap:8px}
+.chip b{display:flex;align-items:center;height:34px;padding:0 13px;border-radius:99px;background:#fff;border:1px solid var(--line);font-size:13px;font-weight:700}
+.chip.on b{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip-arrow{width:7px;height:7px;border:solid #b5a899;border-width:2.5px 2.5px 0 0;transform:rotate(45deg);margin-right:2px}
+.ob-body h1 .hl{color:#c95f39}
+
+/* splash */
+.splash{background:#1b1512;color:#fff;align-items:center;justify-content:flex-start;padding:0;text-align:center;cursor:pointer;font:inherit}
+.sp-hero{width:252px;height:281px;margin-top:max(120px,15vh);animation:sp-in .7s cubic-bezier(.2,.8,.2,1) both}
+.sp-hero .hero-card{box-shadow:none}
+.sp-word{display:flex;align-items:flex-start;gap:6px;margin-top:56px;font-size:60px;font-weight:900;letter-spacing:-.04em;line-height:1;animation:rise .55s .25s cubic-bezier(.2,.8,.2,1) both}
+.sp-word i{width:12px;height:12px;margin-top:4px;border-radius:50%;background:var(--coral);box-shadow:0 0 0 5px rgba(224,113,72,.25)}
+.sp-tag{margin-top:18px;font-size:18px;font-weight:500;color:rgba(255,255,255,.78);letter-spacing:-.02em;animation:rise .55s .4s cubic-bezier(.2,.8,.2,1) both}
+.sp-bottom{position:absolute;left:0;right:0;bottom:max(48px,6vh);display:flex;flex-direction:column;align-items:center;gap:16px;animation:fade .6s .6s both}
+.sp-shutter{width:54px;height:54px;box-sizing:border-box;border:3px solid rgba(255,255,255,.9);border-radius:50%;padding:4px;display:block}
+.sp-shutter i{display:block;width:100%;height:100%;border-radius:50%;background:var(--coral)}
+.sp-en{font-size:14px;font-weight:800;letter-spacing:.24em;color:#f0a585}
+@keyframes sp-in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}

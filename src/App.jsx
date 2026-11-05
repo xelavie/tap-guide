@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { I18N } from './data/i18n.js';
-import { FAUCETS as F } from './data/faucets.js';
+import { FAUCETS as F, HERO } from './data/faucets.js';
 import { PhotoStage, GuideOverlay, renderGuideImage } from './overlay.jsx';
 import { loadAiConfig, activeAi } from './ai/config.js';
 import { recognize } from './ai/recognize.js';
@@ -13,6 +13,47 @@ const ls = {
   del: (k) => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } },
 };
 
+/* ---------------- Brand ---------------- */
+function Brand({ T, light }) {
+  return <div className={'brand' + (light ? ' light' : '')}>{T.brand}<span className="brand-dot" aria-hidden="true" /></div>;
+}
+
+// Faucet illustration framed by viewfinder corners
+function HeroFrame({ lang, step, className = '', children }) {
+  return (
+    <div className={'hero-frame ' + className}>
+      <div className="hero-card">
+        <PhotoStage src={HERO.img} ratio={HERO.ratio}>
+          {step != null && <GuideOverlay faucet={HERO} lang={lang} step={step} />}
+        </PhotoStage>
+        {children}
+      </div>
+      <i className="vf" /><i className="vf" /><i className="vf" /><i className="vf" />
+    </div>
+  );
+}
+
+/* ---------------- Splash ---------------- */
+function Splash({ lang, quick, onDone }) {
+  const T = T_(lang);
+  const doneRef = useRef(onDone); doneRef.current = onDone;
+  useEffect(() => {
+    const t = setTimeout(() => doneRef.current(), quick ? 900 : 2200);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <button className="scr splash" onClick={() => doneRef.current()} aria-label={T.brand + ' — ' + T.skipSplash} data-screen-label="00 Splash">
+      <HeroFrame lang={lang} step={-1} className="sp-hero" />
+      <span className="sp-word">{T.brand}<i aria-hidden="true" /></span>
+      <span className="sp-tag">{T.tagline}</span>
+      <span className="sp-bottom" aria-hidden="true">
+        <span className="sp-shutter"><i /></span>
+        <span className="sp-en">TAPSNAP</span>
+      </span>
+    </button>
+  );
+}
+
 /* ---------------- Onboarding ---------------- */
 function Onboarding({ lang, setLang, onDone }) {
   const T = T_(lang);
@@ -22,25 +63,31 @@ function Onboarding({ lang, setLang, onDone }) {
     { t: T.ob2T, d: T.ob2D },
     { t: T.ob3T, d: T.ob3D },
   ];
-  const lever = F[0];
+  // Highlight the last line of the first headline ("찍어봐")
+  const [l1, ...rest] = pages[i].t.split('\n');
   return (
     <div className="scr ob" data-screen-label="01 Onboarding">
       <div className="ob-top">
-        <div className="brand"><span className="brand-mark" />{T.brand}</div>
+        <Brand T={T} />
         <LangToggle lang={lang} setLang={setLang} />
       </div>
       <div className="ob-art">
-        <div className={'ob-card ob-card-' + i}>
-          <PhotoStage src={lever.img} ratio={1}>
-            {i === 0 && <div className="ob-q">?</div>}
-            {i >= 1 && <GuideOverlay faucet={lever} lang={lang} step={0} />}
-          </PhotoStage>
+        <HeroFrame lang={lang} step={i === 2 ? null : i} className={'ob-card-' + i}>
           {i === 2 && <div className="ob-perm"><span className="cam-ic" /><div><b>{T.brand}</b><small>{lang === 'ko' ? '카메라 접근 허용' : 'Allow camera access'}</small></div></div>}
-          <div className="ob-corners"><i /><i /><i /><i /></div>
-        </div>
+        </HeroFrame>
+        {i === 0 && (
+          <div className="ob-chips rise d1">
+            {T.chips.map((c, k) => (
+              <span key={k} className={'chip' + (k === 0 ? ' on' : '')}>
+                {k > 0 && <i className="chip-arrow" aria-hidden="true" />}
+                <b>{c}</b>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="ob-body">
-        <h1 key={'t' + i} className="rise">{pages[i].t}</h1>
+        <h1 key={'t' + i} className="rise">{l1}{rest.length > 0 && <>{'\n'}<span className={i === 0 ? 'hl' : ''}>{rest.join('\n')}</span></>}</h1>
         <p key={'d' + i} className="rise d1">{pages[i].d}</p>
       </div>
       <div className="ob-foot">
@@ -118,7 +165,7 @@ function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) 
         <video ref={vid} playsInline muted className={status === 'live' ? 'on' : ''} />
         {status !== 'live' && (
           <div className="cam-off">
-            <div className="cam-off-bg" style={{ backgroundImage: `url(${F[0].img})` }} />
+            <div className="cam-off-bg" style={{ backgroundImage: `url(${HERO.img})` }} />
             {status === 'off' && (
               <div className="cam-off-msg">
                 <span className="cam-ic big" />
@@ -133,7 +180,7 @@ function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) 
       </div>
 
       <div className="cam-top">
-        <div className="brand light"><span className="brand-mark" />{T.brand}</div>
+        <Brand T={T} light />
         <div className="cam-top-r">
           <AiChip lang={lang} connected={aiOn} onClick={onSettings} />
           <LangToggle lang={lang} setLang={setLang} dark />
@@ -380,7 +427,8 @@ export default function App() {
   const [lang, setLangS] = useState(() => ls.get('tg_lang') || 'ko');
   const setLang = (l) => { setLangS(l); ls.set('tg_lang', l); };
   const hashFaucet = () => F.find(f => '#' + f.id === location.hash) || null;
-  const [screen, setScreen] = useState(() => hashFaucet() ? 'result' : ls.get('tg_ob') ? 'camera' : 'onboard');
+  const [screen, setScreen] = useState(() => hashFaucet() ? 'result' : 'splash');
+  const [seen] = useState(() => !!ls.get('tg_ob'));
   const [photo, setPhoto] = useState(null);       // {src, ratio}
   const [faucet, setFaucet] = useState(() => hashFaucet()); // the guide being shown
   const [userPhoto, setUserPhoto] = useState(null);
@@ -421,7 +469,7 @@ export default function App() {
     if (kind === 'save') {
       const c = await renderGuideImage(faucet, lang, T);
       const a = document.createElement('a');
-      a.download = `tapguide-${faucet.id}.png`; a.href = c.toDataURL('image/png'); a.click();
+      a.download = `tapsnap-${faucet.id}.png`; a.href = c.toDataURL('image/png'); a.click();
       setShare(false); showToast(T.saved); return;
     }
     if (kind === 'link') {
@@ -432,7 +480,7 @@ export default function App() {
       try {
         const c = await renderGuideImage(faucet, lang, T);
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-        const file = new File([blob], 'tapguide.png', { type: 'image/png' });
+        const file = new File([blob], 'tapsnap.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: faucet.name[lang] });
         } else if (navigator.share) {
@@ -449,6 +497,7 @@ export default function App() {
   return (
     <div className="device">
       <div className="screen">
+        {screen === 'splash' && <Splash lang={lang} quick={seen} onDone={() => setScreen(seen ? 'camera' : 'onboard')} />}
         {screen === 'onboard' && <Onboarding lang={lang} setLang={setLang} onDone={() => { ls.set('tg_ob', '1'); setScreen('camera'); }} />}
         {screen === 'camera' && <CameraScreen lang={lang} setLang={setLang} onCapture={goCapture} onSample={goSample} aiOn={!!ai} onSettings={() => openSettings('camera')} />}
         {screen === 'analyze' && photo && job && <Analyzing lang={lang} photo={photo} job={job} onDone={onAnalyzed} />}
@@ -469,6 +518,7 @@ export default function App() {
         {toast && <div className="toast" role="status">{toast}</div>}
       </div>
       <div className="demo-nav">
+        <button onClick={() => go('splash')}>{lang === 'ko' ? '시작 화면' : 'Splash'}</button>
         <button onClick={() => { ls.del('tg_ob'); go('onboard'); }}>{lang === 'ko' ? '온보딩' : 'Onboarding'}</button>
         <button onClick={() => go('camera')}>{lang === 'ko' ? '촬영' : 'Camera'}</button>
         <button onClick={() => { setUserPhoto(null); setFaucet(null); setPhoto({ src: F[1].img, ratio: F[1].ratio }); setFail({ reason: 'low', error: null }); setScreen('fail'); }}>{lang === 'ko' ? '인식 실패' : 'Fail state'}</button>

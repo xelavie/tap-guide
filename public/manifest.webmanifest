@@ -1,10 +1,10 @@
 {
-  "name": "수도꼭지 도우미 · Tap Guide",
-  "short_name": "수도꼭지 도우미",
+  "name": "탭스냅 · TapSnap",
+  "short_name": "탭스냅",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#fbf8f3",
+  "background_color": "#1b1512",
   "theme_color": "#fbf8f3",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
