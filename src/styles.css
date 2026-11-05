@@ -361,3 +361,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
 }
+/* tabs: never wrap; scroll sideways when there are many steps */
+.tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px;flex:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{white-space:nowrap;flex:none}

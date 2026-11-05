@@ -5,7 +5,7 @@ import img_sensor from '../assets/sensor.jpg';
 import img_thermo from '../assets/thermo.jpg';
 import img_diverter from '../assets/diverter.jpg';
 
-export const FAUCETS = [
+const RAW = [
   {
     id: 'lever', img: img_lever, ratio: 1, match: 96,
     name: { ko: '싱글레버 혼합수전', en: 'Single-lever mixer' },
@@ -117,3 +117,43 @@ export const FAUCETS = [
     safety: { ko: '전환 직후 샤워기에서 찬물/뜨거운 물이 갑자기 나올 수 있어요. 몸에서 떨어뜨리고 바꾸세요.', en: 'Water may spray suddenly when switching — aim the head away from you.' },
   },
 ];
+
+// ---- Optional parts ----
+// Some faucets have extra controls that only appear on certain models.
+// The AI looks for them; if found on the photo, their steps are added to the guide.
+
+// Push/pull shower diverter knob (pull up = shower, push down = spout).
+// Common on wall-mounted bath/shower mixers and US tub spouts.
+const PULL_DIVERTER_PIN = { id: 'pull', x: 50, y: 50, label: { ko: '샤워 전환', en: 'Shower switch' }, side: 'r', optional: true };
+const PULL_DIVERTER_STEPS = [
+  { pins: ['pull'], requires: ['pull'], arrow: { kind: 'up', at: 'pull' },
+    t: { ko: '샤워로 바꾸려면 전환 버튼을 위로 당기세요', en: 'Pull the switch up for the shower' },
+    d: { ko: '물이 나오는 중에 당겨야 걸려요. 샤워기는 몸 반대쪽으로 두세요.', en: 'Pull while water is running. Point the shower head away from you.' } },
+  { pins: ['pull'], requires: ['pull'], arrow: { kind: 'down', at: 'pull' },
+    t: { ko: '토수구로 돌리려면 버튼을 아래로 누르세요', en: 'Push it down to switch back to the spout' },
+    d: { ko: '물을 잠그면 저절로 내려가는 모델도 많아요.', en: 'On many models it drops back by itself when the water is off.' } },
+];
+
+// Insert optional steps before the final "turn it off" step.
+function withOptional(f, pins, steps) {
+  const last = f.steps.length - 1;
+  return { ...f, pins: [...f.pins, ...pins], steps: [...f.steps.slice(0, last), ...steps, f.steps[last]] };
+}
+const EXTRAS = {
+  lever: (f) => withOptional(f, [PULL_DIVERTER_PIN], PULL_DIVERTER_STEPS),
+  two: (f) => withOptional(f, [PULL_DIVERTER_PIN], PULL_DIVERTER_STEPS),
+};
+
+// Full definitions incl. optional parts — used by AI recognition.
+export const FAUCET_DEFS = RAW.map(f => (EXTRAS[f.id] ? EXTRAS[f.id](f) : f));
+
+// Guide without optional parts — used for sample photos and manual pick,
+// where we can't know whether the model has those controls.
+export function stripOptional(f) {
+  return {
+    ...f,
+    pins: f.pins.filter(p => !p.optional),
+    steps: f.steps.filter(s => !s.requires),
+  };
+}
+export const FAUCETS = FAUCET_DEFS.map(stripOptional);

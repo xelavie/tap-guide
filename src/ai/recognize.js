@@ -1,18 +1,22 @@
 // Faucet recognition: photo → { type, confidence, pin positions on THIS photo, note }
-import { FAUCETS } from '../data/faucets.js';
+import { FAUCET_DEFS, stripOptional } from '../data/faucets.js';
 import { callProvider, extractJson, AiError } from './providers.js';
 
 export const MIN_CONFIDENCE = 0.6;
 
+const PULL_HINT = 'a small push/pull diverter knob or button that sends water to the shower hose when pulled up (often on top of or just behind the spout, between the lever and the spout outlet). Only if clearly visible.';
+
 // What the model should look for. Keep in sync with FAUCETS ids / pin ids.
 const CATALOG = {
   lever: {
-    cue: 'One spout body with a SINGLE handle/lever on top or side. Lift for flow, swing left/right for temperature. Basin, kitchen or shower single-lever mixers.',
+    cue: 'One mixer body with a SINGLE handle/lever on top or side. Lift for flow, swing left/right for temperature. Basin, kitchen, and wall-mounted bath/shower single-lever mixers (often with a shower hose).',
     pins: { h: 'the lever handle (its grip/top)', s: 'the spout outlet tip where water comes out' },
+    optional: { pull: PULL_HINT },
   },
   two: {
     cue: 'TWO separate handles/knobs (hot and cold) that feed one spout, including cross-head taps and widespread sets. Also use for separate hot and cold taps.',
     pins: { hot: 'the HOT handle (usually left, red/H mark)', cold: 'the COLD handle (usually right, blue/C mark)', s: 'the spout outlet tip' },
+    optional: { pull: PULL_HINT },
   },
   sensor: {
     cue: 'Touchless faucet with NO handle; a small dark sensor window on the body or base.',
@@ -35,7 +39,8 @@ Reply with JSON only, no prose.`;
 
 function buildPrompt(lang) {
   const types = Object.entries(CATALOG).map(([id, t]) =>
-    `- "${id}": ${t.cue}\n  parts: ${Object.entries(t.pins).map(([p, d]) => `"${p}" = ${d}`).join('; ')}`).join('\n');
+    `- "${id}": ${t.cue}\n  parts: ${Object.entries(t.pins).map(([p, d]) => `"${p}" = ${d}`).join('; ')}` +
+    (t.optional ? `\n  optional parts (include only if present, else null): ${Object.entries(t.optional).map(([p, d]) => `"${p}" = ${d}`).join('; ')}` : '')).join('\n');
   return `Catalog:
 ${types}
 
@@ -72,6 +77,7 @@ function sideFor(x, fallback) {
 function anchorOf(faucet, arrow) {
   let best = null, bd = Infinity;
   for (const p of faucet.pins) {
+    if (p.optional) continue;
     const d = Math.hypot(p.x - arrow.x, p.y - arrow.y);
     if (d < bd) { bd = d; best = p; }
   }
@@ -88,9 +94,9 @@ export function projectOnPhoto(faucet, photo, parts, confidence, note) {
     pins.push({ ...p, x, y, side: p.side === 'b' ? 'b' : sideFor(x, p.side) });
   }
   const byId = Object.fromEntries(pins.map(p => [p.id, p]));
-  const steps = faucet.steps.map(s => {
+  const steps = faucet.steps.filter(s => !s.requires || s.requires.every(id => byId[id])).map(s => {
     if (!s.arrow) return s;
-    const a = anchorOf(faucet, s.arrow);
+    const a = s.arrow.at ? { pin: s.arrow.at, dx: 0, dy: 0 } : anchorOf(faucet, s.arrow);
     const at = a && byId[a.pin];
     return { ...s, arrow: at ? { ...s.arrow, x: clamp(at.x + a.dx), y: clamp(at.y + a.dy) } : null };
   });
@@ -100,7 +106,7 @@ export function projectOnPhoto(faucet, photo, parts, confidence, note) {
     match: Math.round(confidence * 100),
     note: note || '',
     onPhoto: pins.length > 0,
-    ref: faucet,
+    ref: stripOptional(faucet),
   };
 }
 
@@ -111,7 +117,7 @@ export async function recognize(cfg, photo, lang, signal) {
   const ms = Math.round(performance.now() - t0);
   const j = extractJson(txt);
   const conf = Math.max(0, Math.min(1, Number(j.confidence) || 0));
-  const faucet = FAUCETS.find(f => f.id === j.type);
+  const faucet = FAUCET_DEFS.find(f => f.id === j.type);
   const run = { provider: cfg.provider, model: cfg.model, ms, type: j.type, confidence: conf, raw: j, at: Date.now() };
   if (!faucet || conf < MIN_CONFIDENCE) return { ok: false, run };
   const guide = projectOnPhoto(faucet, { src: prep.dataUrl, ratio: prep.ratio }, j.parts, conf, typeof j.note === 'string' ? j.note : '');
