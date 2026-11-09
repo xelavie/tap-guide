@@ -123,12 +123,32 @@ function AiChip({ lang, connected, onClick }) {
 }
 
 /* ---------------- Camera ---------------- */
-function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) {
+// Read a photo from the album into a JPEG data URL (orientation fixed, max 2000px).
+async function fileToPhoto(file) {
+  let src;
+  try {
+    src = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch (e) {
+    src = await new Promise((res, rej) => {
+      const url = URL.createObjectURL(file); const im = new Image();
+      im.onload = () => res(im); im.onerror = rej; im.src = url;
+    });
+  }
+  const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
+  if (!w0 || !h0) throw new Error('empty image');
+  const s = Math.min(1, 2000 / Math.max(w0, h0));
+  const c = document.createElement('canvas'); c.width = Math.round(w0 * s); c.height = Math.round(h0 * s);
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return { src: c.toDataURL('image/jpeg', 0.9), ratio: c.width / c.height };
+}
+
+function CameraScreen({ lang, setLang, onCapture, aiOn, onSettings, toast }) {
   const T = T_(lang);
   const vid = useRef(null);
   const fileRef = useRef(null);
   const [status, setStatus] = useState('pending'); // pending | live | off
   const [flash, setFlash] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let stream; let cancelled = false;
@@ -144,19 +164,26 @@ function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) 
     return () => { cancelled = true; stream && stream.getTracks().forEach(t => t.stop()); };
   }, []);
 
+  const openAlbum = () => fileRef.current && fileRef.current.click();
   const shoot = () => {
-    if (status !== 'live') { onSample(F[0]); return; }
+    if (status !== 'live') { openAlbum(); return; }
     const v = vid.current; const c = document.createElement('canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0);
     setFlash(true); setTimeout(() => setFlash(false), 180);
     onCapture(c.toDataURL('image/jpeg', .9), c.width / c.height);
   };
-  const onFile = (e) => {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
+  const onFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
     e.target.value = '';
-    const url = URL.createObjectURL(f); const im = new Image();
-    im.onload = () => onCapture(url, im.naturalWidth / im.naturalHeight); im.src = url;
+    if (!file) return;
+    setBusy(true);
+    try {
+      const p = await fileToPhoto(file);
+      onCapture(p.src, p.ratio);
+    } catch (err) {
+      toast(T.badPhoto);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -171,6 +198,7 @@ function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) 
                 <span className="cam-ic big" />
                 <b>{T.camOff}</b>
                 <p>{T.camOffD}</p>
+                <button className="album-cta" onClick={openAlbum}><span className="gal-ic" />{T.pickPhoto}</button>
               </div>
             )}
           </div>
@@ -189,21 +217,13 @@ function CameraScreen({ lang, setLang, onCapture, onSample, aiOn, onSettings }) 
       <div className="cam-hint">{T.aim}</div>
 
       <div className="cam-bottom">
-        <div className="samples-lbl">{T.samples}</div>
-        <div className="samples">
-          {F.map(f => (
-            <button key={f.id} className="sample" onClick={() => onSample(f)}>
-              <img src={f.img} alt="" />
-              <span>{f.short[lang]}</span>
-            </button>
-          ))}
-        </div>
         <div className="cam-ctrls">
-          <button className="cam-side" onClick={() => fileRef.current.click()} aria-label={T.gallery}>
-            <span className="gal-ic" /><small>{T.gallery}</small>
+          <button className="album-btn" onClick={openAlbum} aria-label={T.pickPhoto} disabled={busy}>
+            <span className="album-ic"><span className="gal-ic" /></span>
+            <small>{busy ? T.loadingPhoto : T.gallery}</small>
           </button>
           <button className="shutter" onClick={shoot} aria-label={lang === 'ko' ? '촬영' : 'Capture'}><i /></button>
-          <div className="cam-side" />
+          <div className="album-btn" aria-hidden="true" />
         </div>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
       </div>
@@ -454,10 +474,6 @@ export default function App() {
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(null), 1800); };
   const go = (s) => { if (location.hash) history.replaceState(null, '', location.pathname + location.search); setScreen(s); };
 
-  const goSample = (f) => {
-    setUserPhoto(null); setPhoto({ src: f.img, ratio: f.ratio });
-    setJob({ sample: f }); setScreen('analyze');
-  };
   const goCapture = (src, ratio) => {
     const p = { src, ratio };
     setUserPhoto(p); setPhoto(p); setFaucet(null);
@@ -508,7 +524,7 @@ export default function App() {
       <div className="screen">
         {screen === 'splash' && <Splash lang={lang} quick={seen} onDone={() => setScreen(seen ? 'camera' : 'onboard')} />}
         {screen === 'onboard' && <Onboarding lang={lang} setLang={setLang} onDone={() => { ls.set('tg_ob', '1'); setScreen('camera'); }} />}
-        {screen === 'camera' && <CameraScreen lang={lang} setLang={setLang} onCapture={goCapture} onSample={goSample} aiOn={!!ai} onSettings={() => openSettings('camera')} />}
+        {screen === 'camera' && <CameraScreen lang={lang} setLang={setLang} onCapture={goCapture} aiOn={!!ai} onSettings={() => openSettings('camera')} toast={showToast} />}
         {screen === 'analyze' && photo && job && <Analyzing lang={lang} photo={photo} job={job} onDone={onAnalyzed} />}
         {screen === 'fail' && photo && (
           <FailScreen lang={lang} photo={photo} reason={fail.reason} error={fail.error}
@@ -521,7 +537,9 @@ export default function App() {
         )}
         {screen === 'settings' && (
           <SettingsScreen lang={lang} cfg={aiCfg} lastRun={lastRun}
-            onChange={setAiCfg} onBack={() => setScreen(back)} toast={showToast} />
+            onChange={setAiCfg} onBack={() => setScreen(back)} toast={showToast}
+            onGoCamera={() => go('camera')}
+            onRetry={back === 'fail' && userPhoto ? () => goCapture(userPhoto.src, userPhoto.ratio) : null} />
         )}
         {share && faucet && <ShareSheet lang={lang} faucet={faucet} onClose={() => setShare(false)} onAction={doShare} />}
         {toast && <div className="toast" role="status">{toast}</div>}
