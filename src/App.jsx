@@ -4,6 +4,7 @@ import { FAUCETS as F, HERO } from './data/faucets.js';
 import { PhotoStage, GuideOverlay, renderGuideImage } from './overlay.jsx';
 import { loadAiConfig, activeAi } from './ai/config.js';
 import { recognize } from './ai/recognize.js';
+import { PROVIDERS } from './ai/providers.js';
 import SettingsScreen from './Settings.jsx';
 
 const T_ = (lang) => I18N[lang];
@@ -284,13 +285,20 @@ function errorText(err, lang) {
     case 'auth': return ko ? 'API 키가 맞지 않아요. AI 연결 설정에서 키를 확인해주세요.' : 'The API key was rejected. Check it in AI setup.';
     case 'quota': return ko ? '사용 한도에 걸렸어요. 잠시 후 다시 시도하거나 결제 설정을 확인해주세요.' : 'Rate or usage limit reached. Try again later or check billing.';
     case 'workspace': return ko ? 'Claude 키에 워크스페이스 설정이 필요해요. AI 연결 화면을 확인해주세요.' : 'Your Claude key needs a workspace. Check AI setup.';
+    case 'busy': {
+      const name = PROVIDERS[err.provider]?.label || 'AI';
+      return ko ? `지금 ${name}에 사용자가 몰려서 잠깐 바빠요. 잠시 뒤 같은 사진으로 다시 시도해 보세요.`
+                : `${name} is busy right now. Wait a moment and try the same photo again.`;
+    }
     case 'network': return ko ? '인터넷 연결을 확인해주세요.' : 'Check your internet connection.';
     case 'parse': return ko ? 'AI 응답을 읽지 못했어요. 다시 찍어주세요.' : 'Could not read the AI reply. Please retake.';
     default: return (ko ? 'AI 오류: ' : 'AI error: ') + (err?.message || '');
   }
 }
 
-function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings }) {
+const RETRYABLE = ['busy', 'network', 'parse', 'quota', 'api'];
+
+function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings, onRetry }) {
   const T = T_(lang);
   const noAi = reason === 'noai';
   const isErr = reason === 'error';
@@ -301,7 +309,7 @@ function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings }
         <div className="fail-badge">{noAi ? 'AI' : '?'}</div>
       </div>
       <div className="fail-body">
-        <h2>{noAi ? T.noAiT : isErr ? T.errT : T.failT}</h2>
+        <h2>{noAi ? T.noAiT : error?.kind === 'busy' ? T.busyT : isErr ? T.errT : T.failT}</h2>
         <p>{noAi ? T.noAiD : isErr ? errorText(error, lang) : T.failD}</p>
         {(noAi || error?.kind === 'auth' || error?.kind === 'workspace') && (
           <button className="connect-btn" onClick={onSettings}><span className="ai-dot" />{T.connect}</button>
@@ -321,7 +329,12 @@ function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings }
         </div>
       </div>
       <div className="fail-foot">
-        <button className="btn-primary grow" onClick={onRetake}><span className="cam-ic sm" />{T.retake}</button>
+        {isErr && onRetry && RETRYABLE.includes(error?.kind) ? (<>
+          <button className="btn-ghost" onClick={onRetake}>{T.retake}</button>
+          <button className="btn-primary grow" onClick={onRetry}>↻ {T.retrySame}</button>
+        </>) : (
+          <button className="btn-primary grow" onClick={onRetake}><span className="cam-ic sm" />{T.retake}</button>
+        )}
       </div>
     </div>
   );
@@ -529,6 +542,7 @@ export default function App() {
         {screen === 'fail' && photo && (
           <FailScreen lang={lang} photo={photo} reason={fail.reason} error={fail.error}
             onRetake={() => go('camera')} onSettings={() => openSettings('fail')}
+            onRetry={userPhoto ? () => goCapture(userPhoto.src, userPhoto.ratio) : null}
             onPick={(f) => { setFaucet(f); setScreen('result'); }} />
         )}
         {screen === 'result' && faucet && (

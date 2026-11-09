@@ -31,6 +31,7 @@ export class AiError extends Error {
     super(message);
     this.status = status;
     this.kind = kind || (status === 401 || status === 403 ? 'auth' : status === 429 ? 'quota' : 'api');
+    this.provider = null;
   }
 }
 
@@ -46,7 +47,9 @@ async function postJson(url, headers, body, signal) {
   try { json = await res.json(); } catch (e) { /* non-JSON */ }
   if (!res.ok) {
     const msg = json?.error?.message || json?.message || `HTTP ${res.status}`;
-    const kind = /workspace/i.test(msg) ? 'workspace' : undefined;
+    // 'busy' = the provider is overloaded right now (temporary, worth retrying)
+    const busy = [500, 502, 503, 504, 529].includes(res.status) || /overload|high demand|unavailable|try again later/i.test(msg);
+    const kind = /workspace/i.test(msg) ? 'workspace' : busy ? 'busy' : undefined;
     throw new AiError(msg, { status: res.status, kind });
   }
   return json;
@@ -94,11 +97,29 @@ async function callOpenAI({ key, model, system, text, image, signal }) {
 
 const CALLERS = { anthropic: callAnthropic, gemini: callGemini, openai: callOpenAI };
 
+const wait = (ms, signal) => new Promise((res, rej) => {
+  const t = setTimeout(res, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Aborted', 'AbortError')); }, { once: true });
+});
+
+// Busy/overloaded replies are usually gone within seconds, so retry quietly
+// (2 s, then 5 s) before showing the user an error.
+const BUSY_RETRY_MS = [2000, 5000];
+
 export async function callProvider(cfg, args) {
   const fn = CALLERS[cfg.provider];
   if (!fn) throw new AiError('Unknown AI provider', { kind: 'config' });
   if (!cfg.key) throw new AiError('No API key', { kind: 'nokey' });
-  return fn({ key: cfg.key.trim(), model: (cfg.model || PROVIDERS[cfg.provider].defaultModel).trim(), workspace: (cfg.workspace || '').trim(), ...args });
+  const call = () => fn({ key: cfg.key.trim(), model: (cfg.model || PROVIDERS[cfg.provider].defaultModel).trim(), workspace: (cfg.workspace || '').trim(), ...args });
+  for (let i = 0; ; i++) {
+    try { return await call(); }
+    catch (e) {
+      if (e instanceof AiError) e.provider = cfg.provider;
+      if (!(e instanceof AiError) || e.kind !== 'busy' || i >= BUSY_RETRY_MS.length) throw e;
+      args.onBusy?.(i + 1);
+      await wait(BUSY_RETRY_MS[i], args.signal);
+    }
+  }
 }
 
 // Pull the first JSON object out of a model reply (tolerates code fences / chatter).

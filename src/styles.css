@@ -283,7 +283,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .pick button{display:flex;flex-direction:column;align-items:center;gap:5px}
 .pick img{width:100%;aspect-ratio:1;border-radius:14px;object-fit:cover;background:#fff;border:1px solid var(--line)}
 .pick span{font-size:10.5px;font-weight:600;color:var(--ink2);white-space:nowrap}
-.fail-foot{padding:14px 22px 30px;display:flex}
+.fail-foot{padding:14px 22px 30px;display:flex;gap:8px;align-items:center}
+.fail-foot .btn-ghost{flex:none;padding:0 14px}
 
 /* ---------- Share ---------- */
 .modal{position:absolute;inset:0;background:rgba(30,20,12,.45);z-index:20;display:flex;align-items:flex-end;animation:fade .25s}
