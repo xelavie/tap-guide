@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { I18N } from './data/i18n.js';
 import { FAUCETS as F, HERO } from './data/faucets.js';
-import { PhotoStage, GuideOverlay, renderGuideImage } from './overlay.jsx';
+import { PhotoStage, GuideOverlay, renderGuideImage, DIR_GLYPH, DIR_WORD } from './overlay.jsx';
 import { loadAiConfig, activeAi } from './ai/config.js';
 import { recognize } from './ai/recognize.js';
 import { PROVIDERS } from './ai/providers.js';
@@ -341,6 +341,21 @@ function FailScreen({ lang, photo, reason, error, onRetake, onPick, onSettings, 
 }
 
 /* ---------------- Result ---------------- */
+// What each direction does, in words under the step (always readable, even if the photo is small)
+function ModeLegend({ modes, lang }) {
+  return (
+    <ul className="mode-legend rise d2">
+      {modes.map((m, i) => (
+        <li key={i} className={m.tone ? 'tone-' + m.tone : ''}>
+          <i>{m.dir ? DIR_GLYPH[m.dir] : m.tone === 'hot' ? 'H' : m.tone === 'cold' ? 'C' : '•'}</i>
+          {m.dir && <em>{DIR_WORD[lang][m.dir]}</em>}
+          <b>{m.label[lang]}</b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
   const T = T_(lang);
   const [step, setStep] = useState(0);
@@ -394,6 +409,7 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
             <div className="step-txt">
               <h3 className="rise">{cur.t[lang]}</h3>
               <p className="rise d1">{cur.d[lang]}</p>
+              {cur.modes && <ModeLegend modes={cur.modes} lang={lang} />}
             </div>
             <div className="step-nav">
               <button disabled={step === 0} onClick={() => setStep(step - 1)} aria-label={lang === 'ko' ? '이전 단계' : 'Previous step'}><span className="chev-l" /></button>
@@ -403,7 +419,7 @@ function ResultScreen({ lang, setLang, faucet, userPhoto, onRetake, onShare }) {
         ) : (
           <ol className="overview" key="ov">
             {faucet.steps.map((s, i) => (
-              <li key={i} onClick={() => setStep(i)}><span>{i + 1}</span><div><b>{s.t[lang]}</b><small>{s.d[lang]}</small></div></li>
+              <li key={i} onClick={() => setStep(i)}><span>{i + 1}</span><div><b>{s.t[lang]}</b><small>{s.d[lang]}</small>{s.modes && <ModeLegend modes={s.modes} lang={lang} />}</div></li>
             ))}
           </ol>
         )}

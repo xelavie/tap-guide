@@ -81,11 +81,11 @@ const RAW = [
       { id: 'btn', x: 86, y: 35, label: { ko: '안전 버튼', en: 'Safety stop' }, side: 'l', tone: 'hot' },
     ],
     steps: [
-      { pins: ['flow'], arrow: { kind: 'ccw', x: 11, y: 64 },
-        t: { ko: '왼쪽 손잡이를 돌려 물을 트세요', en: 'Turn the left handle to start water' },
-        d: { ko: '돌리는 방향에 따라 샤워/수전으로 바뀌는 모델도 있어요.', en: 'Some models switch shower / tap by direction.' } },
-      { pins: ['temp'], arrow: { kind: 'cw', x: 90, y: 41 },
-        t: { ko: '오른쪽 다이얼로 온도를 맞추세요', en: 'Set temperature with the right dial' },
+      { pins: ['flow'], arrow: { kind: 'ccw', x: 11, y: 64 }, dirModes: 'shower',
+        t: { ko: '{side:flow} 손잡이를 돌려 물을 트세요', en: 'Turn the {side:flow} handle to start water' },
+        d: { ko: '돌리는 방향에 따라 샤워기/토수구로 바뀌는 모델이 많아요.', en: 'On many models the direction picks shower or spout.' } },
+      { pins: ['temp'], arrow: { kind: 'cw', x: 90, y: 41 }, dirModes: 'hot',
+        t: { ko: '{side:temp} 다이얼로 온도를 맞추세요', en: 'Set temperature with the {side:temp} dial' },
         d: { ko: '숫자는 °C예요. 38 근처가 적당해요.', en: 'Numbers are °C. Around 38 is comfortable.' } },
       { pins: ['btn'], arrow: { kind: 'press', x: 86, y: 35 },
         t: { ko: '38°C 이상은 빨간 버튼을 누른 채 돌리세요', en: 'Above 38°C: hold the red button while turning' },
@@ -145,17 +145,67 @@ const EXTRAS = {
   two: (f) => withOptional(f, [PULL_DIVERTER_PIN], PULL_DIVERTER_STEPS),
 };
 
-// Full definitions incl. optional parts — used by AI recognition.
+// ---- Direction modes ----
+// A control whose two directions do different things (hotter/colder, shower/spout).
+// mode = { dir: 'cw'|'ccw'|'left'|'right'|'up'|'down'|null, label: {ko,en}, tone?: 'hot'|'cold' }
+// dir null = we don't know which way, so it is only explained in the step card.
+export const OPPOSITE = { cw: 'ccw', ccw: 'cw', left: 'right', right: 'left', up: 'down', down: 'up' };
+const MODE_SETS = {
+  hot: {
+    known: (dir) => [
+      { dir, label: { ko: '뜨거운 물', en: 'Hotter' }, tone: 'hot' },
+      { dir: OPPOSITE[dir], label: { ko: '찬물', en: 'Colder' }, tone: 'cold' },
+    ],
+    // Without a direction: say how to tell from the dial itself
+    unknown: [
+      { dir: null, label: { ko: '빨간 표시 · 큰 숫자 쪽 = 뜨거운 물', en: 'Red mark / higher numbers = hotter' }, tone: 'hot' },
+      { dir: null, label: { ko: '파란 표시 · 작은 숫자 쪽 = 찬물', en: 'Blue mark / lower numbers = colder' }, tone: 'cold' },
+    ],
+  },
+  shower: {
+    known: (dir) => [
+      { dir, label: { ko: '샤워기', en: 'Shower' } },
+      { dir: OPPOSITE[dir], label: { ko: '토수구', en: 'Spout' } },
+    ],
+    unknown: null,
+  },
+};
+export function modesFor(key, dir) {
+  const set = MODE_SETS[key];
+  if (!set) return null;
+  return dir && OPPOSITE[dir] ? set.known(dir) : set.unknown;
+}
+
+// "{side:pinId}" in step text → 왼쪽/오른쪽 depending on where that pin is
+// relative to the other controls in the photo.
+export function resolveSides(f) {
+  const pins = f.pins.filter(p => !p.optional);
+  const mid = pins.reduce((a, p) => a + p.x, 0) / (pins.length || 1);
+  const fill = (txt, lang) => typeof txt !== 'string' ? txt : txt.replace(/\{side:(\w+)\}/g, (_, id) => {
+    const p = f.pins.find(q => q.id === id);
+    const left = p ? p.x < mid : true;
+    return lang === 'ko' ? (left ? '왼쪽' : '오른쪽') : (left ? 'left' : 'right');
+  });
+  const fix = (o) => o && { ko: fill(o.ko, 'ko'), en: fill(o.en, 'en') };
+  return { ...f, steps: f.steps.map(s => ({ ...s, t: fix(s.t), d: fix(s.d) })) };
+}
+
+// Default modes for the reference photos (no AI direction info).
+function withDefaultModes(f) {
+  return { ...f, steps: f.steps.map(s => (s.dirModes && !s.modes ? { ...s, modes: modesFor(s.dirModes, null) } : s)) };
+}
+
+// Full definitions incl. optional parts — used by AI recognition (side words still unresolved).
 export const FAUCET_DEFS = RAW.map(f => (EXTRAS[f.id] ? EXTRAS[f.id](f) : f));
 
 // Guide without optional parts — used for sample photos and manual pick,
 // where we can't know whether the model has those controls.
 export function stripOptional(f) {
-  return {
+  return resolveSides(withDefaultModes({
     ...f,
     pins: f.pins.filter(p => !p.optional),
     steps: f.steps.filter(s => !s.requires),
-  };
+  }));
 }
 export const FAUCETS = FAUCET_DEFS.map(stripOptional);
 

@@ -1,5 +1,5 @@
 // Faucet recognition: photo → { type, confidence, pin positions on THIS photo, note }
-import { FAUCET_DEFS, stripOptional } from '../data/faucets.js';
+import { FAUCET_DEFS, stripOptional, resolveSides, modesFor, OPPOSITE } from '../data/faucets.js';
 import { callProvider, extractJson, AiError } from './providers.js';
 
 export const MIN_CONFIDENCE = 0.6;
@@ -52,9 +52,14 @@ Return:
   "type": "<catalog id, custom, or unknown>",
   "confidence": <0..1>,
   "parts": { "<part id>": { "x": <0-100>, "y": <0-100> } | null },
+  "dirs": null,
   "note": "<optional, max 80 chars, in ${lang === 'ko' ? 'Korean' : 'English'}: anything unusual the user must know. Empty string if nothing.>",
   "custom": null
 }
+
+For "thermo" only, set "dirs" to { "hot": "cw" | "ccw" | null, "shower": "cw" | "ccw" | "up" | "down" | "left" | "right" | null }:
+"hot" = the way to turn the TEMPERATURE dial, as seen in the photo, to make the water hotter (read printed numbers, red/blue marks or a hot-side arrow; null if you cannot tell).
+"shower" = the way to move the FLOW handle to send water to the hand shower (the other way usually feeds the spout); null if you cannot tell. Never guess.
 
 When type is "custom", set "parts" to {} and fill "custom" instead (Korean in "ko", English in "en", short and plain):
 {
@@ -62,10 +67,14 @@ When type is "custom", set "parts" to {} and fill "custom" instead (Korean in "k
   "parts": [ { "id": "<short id>", "label": { "ko": "<2-6 chars>", "en": "<1-2 words>" }, "x": <0-100>, "y": <0-100>, "tone": "hot" | "cold" | null } ],
   "steps": [ { "part": "<part id>", "arrow": "up" | "down" | "cw" | "ccw" | "swap" | "press" | "hand" | null,
                "t": { "ko": "<imperative, max 22 chars>", "en": "<max 40 chars>" },
-               "d": { "ko": "<one sentence, max 40 chars>", "en": "<max 70 chars>" } } ],
+               "d": { "ko": "<one sentence, max 40 chars>", "en": "<max 70 chars>" },
+               "modes": [ { "dir": "cw" | "ccw" | "left" | "right" | "up" | "down", "label": { "ko": "<2-8 chars>", "en": "<1-3 words>" }, "tone": "hot" | "cold" | null } ] | null } ],
   "safety": { "ko": "<one caution, max 45 chars>", "en": "<max 80 chars>" }
 }
-Rules for custom: 2-6 parts (the controls and the outlet), 2-5 steps in order (turn on, set temperature, switch outlet if any, turn off). "arrow" shows the motion at that part: up/down = lift/push, cw/ccw = rotate clockwise/anticlockwise as seen in the photo, swap = move sideways between hot and cold, press = push a button, hand = put hands under a sensor.`;
+Rules for custom: 2-6 parts (the controls and the outlet), 2-5 steps in order (turn on, set temperature, switch outlet if any, turn off). "arrow" shows the motion at that part: up/down = lift/push, cw/ccw = rotate clockwise/anticlockwise as seen in the photo, swap = move a lever sideways between hot and cold (ONLY for temperature), press = push a button, hand = put hands under a sensor.
+- Each step's "part" is the control the user touches (knob, lever, button), never the outlet. To switch the outlet, point at the switch control, not at the spout or shower head.
+- "tone" on a part is only for a handle that is itself the hot or the cold tap. Otherwise null.
+- "modes": when the control's two directions give different results, list exactly 2 entries (one per direction, as seen in the photo) with the result. Temperature: tone "hot"/"cold". Outlet switching: tone null and name the outlet or the water pattern the user will see, e.g. "샤워기" / "토수구" / "해바라기" / "직선 물줄기". Only include it if you can tell from the photo; otherwise null and explain in "d".`;
 }
 
 // Downscale + re-encode so uploads are small and EXIF orientation is baked in.
@@ -100,7 +109,9 @@ function anchorOf(faucet, arrow) {
 }
 
 // Build a guide that uses the user's photo with AI-located pins.
-export function projectOnPhoto(faucet, photo, parts, confidence, note) {
+const DIRS = Object.keys(OPPOSITE);
+
+export function projectOnPhoto(faucet, photo, parts, confidence, note, dirs) {
   const pins = [];
   for (const p of faucet.pins) {
     const loc = parts?.[p.id];
@@ -114,15 +125,22 @@ export function projectOnPhoto(faucet, photo, parts, confidence, note) {
     const a = s.arrow.at ? { pin: s.arrow.at, dx: 0, dy: 0 } : anchorOf(faucet, s.arrow);
     const at = a && byId[a.pin];
     return { ...s, arrow: at ? { ...s.arrow, x: clamp(at.x + a.dx), y: clamp(at.y + a.dy) } : null };
+  }).map(s => {
+    if (!s.dirModes) return s;
+    // Direction the AI read from this photo (e.g. which way is hotter)
+    const dir = DIRS.includes(dirs?.[s.dirModes]) ? dirs[s.dirModes] : null;
+    const modes = modesFor(s.dirModes, dir);
+    const rot = dir === 'cw' || dir === 'ccw';
+    return { ...s, modes, arrow: s.arrow && rot && s.dirModes === 'hot' ? { ...s.arrow, kind: dir } : s.arrow };
   });
-  return {
+  return resolveSides({
     ...faucet,
     img: photo.src, ratio: photo.ratio, pins, steps,
     match: Math.round(confidence * 100),
     note: note || '',
     onPhoto: pins.length > 0,
     ref: stripOptional(faucet),
-  };
+  });
 }
 
 const ARROWS = ['up', 'down', 'cw', 'ccw', 'swap', 'press', 'hand'];
@@ -143,7 +161,10 @@ export function buildCustomGuide(c, photo, confidence, note) {
   const steps = c.steps.slice(0, 5).filter(st => st && st.t).map(st => {
     const at = byId[st.part];
     const kind = ARROWS.includes(st.arrow) ? st.arrow : null;
-    return { pins: at ? [at.id] : [], arrow: at && kind ? { kind, x: at.x, y: at.y } : null, t: txt2(st.t), d: txt2(st.d) };
+    const modes = Array.isArray(st.modes) ? st.modes.slice(0, 2)
+      .filter(m => m && m.label)
+      .map(m => ({ dir: DIRS.includes(m.dir) ? m.dir : null, label: txt2(m.label), tone: m.tone === 'hot' || m.tone === 'cold' ? m.tone : undefined })) : [];
+    return { pins: at ? [at.id] : [], arrow: at && kind ? { kind, x: at.x, y: at.y } : null, t: txt2(st.t), d: txt2(st.d), modes: modes.length === 2 ? modes : null };
   });
   if (pins.length === 0 || steps.length === 0) return null;
   const name = txt2(c.name, 'Faucet');
@@ -172,7 +193,7 @@ export async function recognize(cfg, photo, lang, signal) {
     return guide ? { ok: true, guide, run } : { ok: false, run };
   }
   if (!faucet || conf < MIN_CONFIDENCE) return { ok: false, run };
-  const guide = projectOnPhoto(faucet, { src: prep.dataUrl, ratio: prep.ratio }, j.parts, conf, typeof j.note === 'string' ? j.note : '');
+  const guide = projectOnPhoto(faucet, { src: prep.dataUrl, ratio: prep.ratio }, j.parts, conf, note, j.dirs);
   return { ok: true, guide, run };
 }
 

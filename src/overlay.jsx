@@ -35,7 +35,28 @@ function PhotoStage({ src, ratio, children, imgStyle, className = '' }) {
   );
 }
 
-function Arrow({ kind, x, y }) {
+export const DIR_GLYPH = { cw: '↻', ccw: '↺', left: '←', right: '→', up: '↑', down: '↓' };
+export const DIR_WORD = {
+  ko: { cw: '시계 방향', ccw: '반시계 방향', left: '왼쪽으로', right: '오른쪽으로', up: '위로', down: '아래로' },
+  en: { cw: 'Clockwise', ccw: 'Anticlockwise', left: 'Left', right: 'Right', up: 'Up', down: 'Down' },
+};
+const isTemp = (modes) => !modes || modes.some(m => m.tone);
+
+// Two result chips next to the control: what each direction does (only when the direction is known)
+function ModeTags({ modes, x, y, lang }) {
+  const known = (modes || []).filter(m => m.dir);
+  if (known.length === 0) return null;
+  const below = y < 62;
+  return (
+    <div className={'mode-tags ' + (below ? 'below' : 'above')} style={{ left: Math.max(22, Math.min(78, x)) + '%', top: y + '%' }}>
+      {known.map((m, i) => (
+        <span key={i} className={'mt ' + (m.tone ? 'tone-' + m.tone : '')}><i>{DIR_GLYPH[m.dir]}</i>{m.label[lang]}</span>
+      ))}
+    </div>
+  );
+}
+
+function Arrow({ kind, x, y, modes }) {
   const pos = { left: x + '%', top: y + '%' };
   if (kind === 'up' || kind === 'down') {
     return (
@@ -57,9 +78,10 @@ function Arrow({ kind, x, y }) {
   }
   if (kind === 'swap') {
     return (
-      <div className="arw arw-swap" style={pos}>
-        <span className="sw-l">H</span><b /><span className="sw-r">C</span>
-      </div>
+      // H/C only when the swing really is hot ↔ cold; otherwise a neutral two-way switch
+      isTemp(modes)
+        ? <div className="arw arw-swap" style={pos}><span className="sw-l">H</span><b /><span className="sw-r">C</span></div>
+        : <div className="arw arw-swap is-neutral" style={pos}><span>◀</span><b /><span>▶</span></div>
     );
   }
   // hand / press → ripple
@@ -102,7 +124,11 @@ function GuideOverlay({ faucet, lang, step }) {
         }
         return <Pin key={p.id} pin={p} lang={lang} state={state} num={num} />;
       })}
-      {active && active.arrow && <Arrow {...active.arrow} />}
+      {active && active.arrow && <Arrow {...active.arrow} modes={active.modes} />}
+      {active && active.modes && (() => {
+        const at = active.arrow || faucet.pins.find(p => p.id === active.pins[0]);
+        return at ? <ModeTags modes={active.modes} x={at.x} y={at.y} lang={lang} /> : null;
+      })()}
     </div>
   );
 }
@@ -116,7 +142,8 @@ async function renderGuideImage(faucet, lang, T) {
   const img = await loadImg(faucet.img);
   const W = 1080, IH = Math.round(W / faucet.ratio);
   const pad = 64, lineH = 46;
-  const footer = 200 + faucet.steps.length * 118 + 150;
+  const modeLine = (s) => (s.modes || []).map(m => (m.dir ? DIR_GLYPH[m.dir] + ' ' : m.tone === 'hot' ? 'H ' : m.tone === 'cold' ? 'C ' : '') + m.label[lang]).join('   ·   ');
+  const footer = 200 + faucet.steps.reduce((a, s) => a + (s.modes ? 160 : 118), 0) + 150;
   const c = document.createElement('canvas');
   c.width = W; c.height = IH + footer;
   const x = c.getContext('2d');
@@ -153,6 +180,7 @@ async function renderGuideImage(faucet, lang, T) {
     x.textAlign = 'left';
     x.fillStyle = ink; x.font = font(700, 38); x.fillText(s.t[lang], pad + 80, y + 22);
     x.fillStyle = '#8a7a6c'; x.font = font(500, 30); x.fillText(s.d[lang], pad + 80, y + 22 + lineH);
+    if (s.modes) { x.fillStyle = coral; x.font = font(700, 28); x.fillText(modeLine(s), pad + 80, y + 22 + lineH * 2); y += 42; }
     y += 88;
   });
   y += 30;
