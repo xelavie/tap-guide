@@ -497,3 +497,7 @@ pre.set-log{background:#fff;border:1px solid var(--line);border-radius:12px;padd
 .mode-legend li em{font-style:normal;color:var(--ink2);font-weight:600}
 .mode-legend li b{font-weight:800}
 .overview .mode-legend{margin-top:5px}
+
+.arw-vert.arw-up.flip{transform:translate(-50%,28%)}
+.arw-swap.flip{transform:translate(-50%,95%)}
+.mode-tags.below.far{transform:translate(-50%,84px)}

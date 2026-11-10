@@ -24,8 +24,12 @@ const CATALOG = {
     pins: { eye: 'the sensor window', s: 'the spout outlet tip' },
   },
   thermo: {
-    cue: 'Horizontal wall-mounted thermostatic bar mixer (often called a shower bar) with a control at EACH end: one is the flow / shower-tub switch (a knob or a slim lever), the other is the temperature dial (numbers in °C may be printed or absent) usually with a small safety stop button (red or metal). Any finish: chrome, black, brass.',
+    cue: 'Horizontal wall-mounted thermostatic bar mixer (often called a shower bar) with a round knob or dial at EACH end: one is the flow / shower-tub switch, the other is the temperature dial (numbers in °C may be printed or absent) usually with a small safety stop button (red or metal). Any finish: chrome, black, brass. NOT when one end has a slim upright stick lever: use "barlever".',
     pins: { flow: 'the flow / switch handle', temp: 'the temperature dial', btn: 'the safety stop button on the temperature dial (often red)' },
+  },
+  barlever: {
+    cue: 'Horizontal wall-mounted bar mixer with a slim upright STICK LEVER at one end (sideways = on/off, up/down = temperature) and a round knob / rotating end cap at the other end that switches between hand shower and spout. Any finish.',
+    pins: { lever: 'the tip of the slim stick lever', div: 'the round knob / end cap that switches outlet', s: 'the spout outlet tip' },
   },
   diverter: {
     cue: 'Wall-mounted set with THREE handles in a row (hot, middle diverter, cold) plus a shower head above and a tub spout below.',
@@ -57,21 +61,21 @@ Return:
   "custom": null
 }
 
-For "thermo" only, set "dirs" to { "hot": "cw" | "ccw" | null, "shower": "cw" | "ccw" | "up" | "down" | "left" | "right" | null }:
-"hot" = the way to turn the TEMPERATURE dial, as seen in the photo, to make the water hotter (read printed numbers, red/blue marks or a hot-side arrow; null if you cannot tell).
-"shower" = the way to move the FLOW handle to send water to the hand shower (the other way usually feeds the spout); null if you cannot tell. Never guess.
+For "thermo" and "barlever" only, set "dirs" (directions as seen in the photo; null for anything you cannot tell from printed numbers, red/blue marks, arrows or icons — never guess):
+- thermo: { "hot": "cw" | "ccw" | null (temperature dial, way to make it hotter), "shower": "cw" | "ccw" | "up" | "down" | null (flow handle, way that feeds the hand shower) }
+- barlever: { "on": "left" | "right" | null (stick lever, way to push it to turn water on), "hot": "up" | "down" | null (stick lever, way that makes it hotter), "shower": "cw" | "ccw" | null (end knob, way that feeds the hand shower) }
 
 When type is "custom", set "parts" to {} and fill "custom" instead (Korean in "ko", English in "en", short and plain):
 {
   "name": { "ko": "<e.g. 사이드 레버 세면대 수전>", "en": "<e.g. Side-lever basin mixer>" },
   "parts": [ { "id": "<short id>", "label": { "ko": "<2-6 chars>", "en": "<1-2 words>" }, "x": <0-100>, "y": <0-100>, "tone": "hot" | "cold" | null } ],
-  "steps": [ { "part": "<part id>", "arrow": "up" | "down" | "cw" | "ccw" | "swap" | "press" | "hand" | null,
+  "steps": [ { "part": "<part id>", "arrow": "up" | "down" | "cw" | "ccw" | "swap" | "slide" | "press" | "hand" | null,
                "t": { "ko": "<imperative, max 22 chars>", "en": "<max 40 chars>" },
                "d": { "ko": "<one sentence, max 40 chars>", "en": "<max 70 chars>" },
                "modes": [ { "dir": "cw" | "ccw" | "left" | "right" | "up" | "down", "label": { "ko": "<2-8 chars>", "en": "<1-3 words>" }, "tone": "hot" | "cold" | null } ] | null } ],
   "safety": { "ko": "<one caution, max 45 chars>", "en": "<max 80 chars>" }
 }
-Rules for custom: 2-6 parts (the controls and the outlet), 2-5 steps in order (turn on, set temperature, switch outlet if any, turn off). "arrow" shows the motion at that part: up/down = lift/push, cw/ccw = rotate clockwise/anticlockwise as seen in the photo, swap = move a lever sideways between hot and cold (ONLY for temperature), press = push a button, hand = put hands under a sensor.
+Rules for custom: 2-6 parts (the controls and the outlet), 2-5 steps in order (turn on, set temperature, switch outlet if any, turn off). "arrow" shows the motion at that part: up/down = lift/push, cw/ccw = rotate clockwise/anticlockwise as seen in the photo, swap = move a lever sideways between hot and cold (ONLY for temperature), slide = move a lever sideways for anything else (e.g. on/off), press = push a button, hand = put hands under a sensor.
 - Each step's "part" is the control the user touches (knob, lever, button), never the outlet. To switch the outlet, point at the switch control, not at the spout or shower head.
 - "tone" on a part is only for a handle that is itself the hot or the cold tap. Otherwise null.
 - "modes": when the control's two directions give different results, list exactly 2 entries (one per direction, as seen in the photo) with the result. Temperature: tone "hot"/"cold". Outlet switching: tone null and name the outlet or the water pattern the user will see, e.g. "샤워기" / "토수구" / "해바라기" / "직선 물줄기". Only include it if you can tell from the photo; otherwise null and explain in "d".`;
@@ -128,10 +132,13 @@ export function projectOnPhoto(faucet, photo, parts, confidence, note, dirs) {
   }).map(s => {
     if (!s.dirModes) return s;
     // Direction the AI read from this photo (e.g. which way is hotter)
-    const dir = DIRS.includes(dirs?.[s.dirModes]) ? dirs[s.dirModes] : null;
+    const key = s.dirKey || s.dirModes;
+    const dir = DIRS.includes(dirs?.[key]) ? dirs[key] : null;
     const modes = modesFor(s.dirModes, dir);
-    const rot = dir === 'cw' || dir === 'ccw';
-    return { ...s, modes, arrow: s.arrow && rot && s.dirModes === 'hot' ? { ...s.arrow, kind: dir } : s.arrow };
+    // Point the temperature arrow the "hotter" way when we know it
+    const same = (a, b) => ['cw', 'ccw'].includes(a) === ['cw', 'ccw'].includes(b) && ['up', 'down'].includes(a) === ['up', 'down'].includes(b);
+    const turn = key === 'hot' && s.arrow && dir && same(s.arrow.kind, dir);
+    return { ...s, modes, arrow: turn ? { ...s.arrow, kind: dir } : s.arrow };
   });
   return resolveSides({
     ...faucet,
@@ -143,7 +150,7 @@ export function projectOnPhoto(faucet, photo, parts, confidence, note, dirs) {
   });
 }
 
-const ARROWS = ['up', 'down', 'cw', 'ccw', 'swap', 'press', 'hand'];
+const ARROWS = ['up', 'down', 'cw', 'ccw', 'swap', 'slide', 'press', 'hand'];
 const txt2 = (v, fb = '') => (v && typeof v === 'object')
   ? { ko: String(v.ko || v.en || fb), en: String(v.en || v.ko || fb) }
   : { ko: String(v || fb), en: String(v || fb) };

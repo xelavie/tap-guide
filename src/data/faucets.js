@@ -4,6 +4,7 @@ import img_twohandle from '../assets/twohandle.jpg';
 import img_sensor from '../assets/sensor.jpg';
 import img_thermo from '../assets/thermo.jpg';
 import img_diverter from '../assets/diverter.jpg';
+import img_barlever from '../assets/barlever.jpg';
 import img_hero from '../assets/hero.svg';
 
 const RAW = [
@@ -94,6 +95,33 @@ const RAW = [
     safety: { ko: '빨간 버튼은 화상 방지 잠금이에요. 아이와 함께라면 누르지 마세요.', en: 'The red button is an anti-scald lock. Leave it alone with kids around.' },
   },
   {
+    // Wall bar mixer: knob at one end switches the outlet; a slim stick lever at the other end
+    // slides sideways for on/off and moves up/down for temperature.
+    id: 'barlever', img: img_barlever, ratio: 900 / 675, match: 90,
+    name: { ko: '바 수전 · 스틱 레버형', en: 'Bar mixer with stick lever' },
+    short: { ko: '바+스틱 레버', en: 'Bar + stick' },
+    pins: [
+      { id: 'lever', x: 77, y: 20, label: { ko: '레버', en: 'Lever' }, side: 'l' },
+      { id: 'div', x: 23, y: 36, label: { ko: '출수 전환', en: 'Outlet switch' }, side: 'r' },
+      { id: 's', x: 51, y: 84, label: { ko: '토수구', en: 'Spout' }, side: 'r' },
+    ],
+    steps: [
+      { pins: ['lever'], arrow: { kind: 'slide', at: 'lever', x: 77, y: 20 }, dirModes: 'onoff', dirKey: 'on',
+        t: { ko: '{side:lever} 레버를 옆으로 밀어 물을 트세요', en: 'Push the {side:lever} lever sideways to turn on' },
+        d: { ko: '좌우로 밀면 물이 켜지고 꺼져요.', en: 'Sideways turns the water on and off.' } },
+      { pins: ['lever'], arrow: { kind: 'up', at: 'lever', x: 77, y: 20 }, dirModes: 'hotLever', dirKey: 'hot',
+        t: { ko: '레버를 위아래로 움직여 온도를 맞추세요', en: 'Move the lever up or down for temperature' },
+        d: { ko: '조금씩 움직이며 손끝으로 온도를 확인하세요.', en: 'Move a little at a time and test with a fingertip.' } },
+      { pins: ['div'], arrow: { kind: 'cw', at: 'div', x: 23, y: 36 }, dirModes: 'shower',
+        t: { ko: '{side:div} 끝 손잡이로 물 나오는 곳을 바꾸세요', en: 'Turn the {side:div} end knob to switch outlet' },
+        d: { ko: '샤워기는 퍼지는 물, 토수구는 아래로 곧게 나와요.', en: 'Shower sprays; the spout runs straight down.' } },
+      { pins: ['lever'], arrow: { kind: 'slide', at: 'lever', x: 77, y: 20 }, dirModes: 'onoff', dirKey: 'on',
+        t: { ko: '다 쓰면 레버를 반대로 밀어 잠그세요', en: 'Push the lever back to turn off' },
+        d: { ko: '물이 완전히 멈췄는지 확인하세요.', en: 'Make sure the water stops.' } },
+    ],
+    safety: { ko: '처음엔 샤워기를 몸 반대쪽으로 두고 물을 트세요.', en: 'Point the shower head away before turning on.' },
+  },
+  {
     id: 'diverter', img: img_diverter, ratio: 1, match: 87,
     name: { ko: '샤워 전환 밸브', en: 'Tub / shower diverter' },
     short: { ko: '샤워 전환', en: 'Diverter' },
@@ -161,6 +189,17 @@ const MODE_SETS = {
       { dir: null, label: { ko: '빨간 표시 · 큰 숫자 쪽 = 뜨거운 물', en: 'Red mark / higher numbers = hotter' }, tone: 'hot' },
       { dir: null, label: { ko: '파란 표시 · 작은 숫자 쪽 = 찬물', en: 'Blue mark / lower numbers = colder' }, tone: 'cold' },
     ],
+  },
+  hotLever: {
+    known: (dir) => MODE_SETS.hot.known(dir),
+    unknown: null,
+  },
+  onoff: {
+    known: (dir) => [
+      { dir, label: { ko: '물 켜기', en: 'On' } },
+      { dir: OPPOSITE[dir], label: { ko: '물 끄기', en: 'Off' } },
+    ],
+    unknown: null,
   },
   shower: {
     known: (dir) => [

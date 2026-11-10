@@ -43,12 +43,15 @@ export const DIR_WORD = {
 const isTemp = (modes) => !modes || modes.some(m => m.tone);
 
 // Two result chips next to the control: what each direction does (only when the direction is known)
-function ModeTags({ modes, x, y, lang }) {
+// Arrows that normally sit above their part are drawn below it when the part is near the top edge.
+export const flipsDown = (kind, y) => y < 30 && ['up', 'swap', 'slide'].includes(kind);
+
+function ModeTags({ modes, x, y, lang, far }) {
   const known = (modes || []).filter(m => m.dir);
   if (known.length === 0) return null;
   const below = y < 62;
   return (
-    <div className={'mode-tags ' + (below ? 'below' : 'above')} style={{ left: Math.max(22, Math.min(78, x)) + '%', top: y + '%' }}>
+    <div className={'mode-tags ' + (below ? 'below' : 'above') + (far ? ' far' : '')} style={{ left: Math.max(22, Math.min(78, x)) + '%', top: y + '%' }}>
       {known.map((m, i) => (
         <span key={i} className={'mt ' + (m.tone ? 'tone-' + m.tone : '')}><i>{DIR_GLYPH[m.dir]}</i>{m.label[lang]}</span>
       ))}
@@ -58,9 +61,10 @@ function ModeTags({ modes, x, y, lang }) {
 
 function Arrow({ kind, x, y, modes }) {
   const pos = { left: x + '%', top: y + '%' };
+  const flip = flipsDown(kind, y) ? ' flip' : '';
   if (kind === 'up' || kind === 'down') {
     return (
-      <div className={'arw arw-vert arw-' + kind} style={pos}>
+      <div className={'arw arw-vert arw-' + kind + flip} style={pos}>
         <i /><i /><i />
       </div>
     );
@@ -76,12 +80,15 @@ function Arrow({ kind, x, y, modes }) {
       </div>
     );
   }
+  if (kind === 'slide') {
+    return <div className={'arw arw-swap is-neutral' + flip} style={pos}><span>◀</span><b /><span>▶</span></div>;
+  }
   if (kind === 'swap') {
     return (
       // H/C only when the swing really is hot ↔ cold; otherwise a neutral two-way switch
       isTemp(modes)
-        ? <div className="arw arw-swap" style={pos}><span className="sw-l">H</span><b /><span className="sw-r">C</span></div>
-        : <div className="arw arw-swap is-neutral" style={pos}><span>◀</span><b /><span>▶</span></div>
+        ? <div className={'arw arw-swap' + flip} style={pos}><span className="sw-l">H</span><b /><span className="sw-r">C</span></div>
+        : <div className={'arw arw-swap is-neutral' + flip} style={pos}><span>◀</span><b /><span>▶</span></div>
     );
   }
   // hand / press → ripple
@@ -127,7 +134,7 @@ function GuideOverlay({ faucet, lang, step }) {
       {active && active.arrow && <Arrow {...active.arrow} modes={active.modes} />}
       {active && active.modes && (() => {
         const at = active.arrow || faucet.pins.find(p => p.id === active.pins[0]);
-        return at ? <ModeTags modes={active.modes} x={at.x} y={at.y} lang={lang} /> : null;
+        return at ? <ModeTags modes={active.modes} x={at.x} y={at.y} lang={lang} far={!!active.arrow && flipsDown(active.arrow.kind, at.y)} /> : null;
       })()}
     </div>
   );
